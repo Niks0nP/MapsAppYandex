@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">MapsAppYandex</string>
+    <string name="location_permission_denied">Разрешение на доступ к геолокации не предоставлено</string>
+    <string name="location_button_off">Необходим доступ к местоположению</string>
 </resources>
