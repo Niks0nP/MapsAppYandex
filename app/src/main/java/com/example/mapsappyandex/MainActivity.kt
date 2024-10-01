@@ -40,6 +40,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var mapView: MapView
     private lateinit var tapListener: MapObjectTapListener
     private val pointViewModel: PointViewModel by viewModels()
+    private val listVisible = mutableListOf<PointEntity>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -144,10 +145,10 @@ class MainActivity : AppCompatActivity() {
                 },
             )
         }
-
         tapListener = MapObjectTapListener { _, _ ->
             showDialogPoint(pointEntity) {
                 mapView.mapWindow.map.mapObjects.remove(placemark)
+                deletePoint(pointEntity)
             }
             true
         }
@@ -160,7 +161,7 @@ class MainActivity : AppCompatActivity() {
         override fun onMapTap(p0: Map, p1: Point) {
             Toast.makeText(
                 this@MainActivity,
-                "Для создания метки, удерживайте палец на карте",
+                R.string.toast_create_point,
                 Toast.LENGTH_SHORT
             ).show()
         }
@@ -173,6 +174,7 @@ class MainActivity : AppCompatActivity() {
     private fun showDialogPointCreate(onPositive: (String) -> Unit = {}) {
         val view = layoutInflater.inflate(R.layout.dialog_menu, null)
         val editText = view.findViewById<EditText>(R.id.name_point)
+
        MaterialAlertDialogBuilder(this)
             .setView(view)
             .setPositiveButton(R.string.positive_button) { dialogInt, _ ->
@@ -185,15 +187,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showDialogPoint(pointEntity: PointEntity, onNegative: () -> Unit = {}) {
-        val dialog = MaterialAlertDialogBuilder(this)
-        dialog.setPositiveButton("Ок") { dialogInt, _ ->
+        val dialogWindow = MaterialAlertDialogBuilder(this)
+
+        dialogWindow.setPositiveButton(R.string.positive_button2) { dialogInt, _ ->
             dialogInt.dismiss()
-        }.setNegativeButton("Удалить метку") { dialogInt, _ ->
+        }.setNegativeButton(R.string.negative_button2) { dialogInt, _ ->
             onNegative()
             dialogInt.dismiss()
         }.setMessage("Координаты точки: ${pointEntity.latitude} ${pointEntity.longitude}")
-            .setTitle("Метка").create()
-        dialog.show()
+            .setTitle(R.string.title).create()
+        dialogWindow.show()
     }
 
     private fun insertNewPoint(point: Point) {
@@ -207,12 +210,19 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun deletePoint(pointEntity: PointEntity) {
+        pointViewModel.deletePoint(pointEntity.id)
+    }
+
     private fun showAllPoints() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 pointViewModel.readAllPoints.collect { list ->
                     list.forEach { point ->
-                        showPoint(point)
+                        if (!listVisible.contains(point)) {
+                            showPoint(point)
+                            listVisible.add(point)
+                        }
                     }
                 }
             }

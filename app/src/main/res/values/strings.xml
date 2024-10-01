@@ -5,6 +5,9 @@
     <string name="show_user_location">location_button</string>
     <string name="positive_button">Добавить название</string>
     <string name="negative_button">Отменить</string>
-    <string name="title_for_point">Ввведите название для метки</string>
-
+    <string name="title_for_point">Введите название для метки</string>
+    <string name="toast_create_point">Для создания метки, удерживайте палец на карте</string>
+    <string name="negative_button2">Удалить метку</string>
+    <string name="positive_button2">Oк</string>
+    <string name="title">Метка</string>
 </resources>
