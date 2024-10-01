@@ -4,13 +4,21 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.location.Location
 import android.os.Bundle
+import android.widget.EditText
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import com.example.mapsappyandex.data.model.entity.PointEntity
+import com.example.mapsappyandex.data.viewmodel.PointViewModel
 import com.example.mapsappyandex.databinding.ActivityMainBinding
 import com.google.android.gms.location.LocationServices
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.yandex.mapkit.Animation
 import com.yandex.mapkit.MapKit
 import com.yandex.mapkit.MapKitFactory
@@ -19,14 +27,19 @@ import com.yandex.mapkit.map.CameraPosition
 import com.yandex.mapkit.map.InputListener
 import com.yandex.mapkit.map.Map
 import com.yandex.mapkit.map.MapObjectTapListener
+import com.yandex.mapkit.map.TextStyle
 import com.yandex.mapkit.mapview.MapView
-import com.yandex.mapkit.traffic.TrafficLayer
 import com.yandex.runtime.image.ImageProvider
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
 
+@AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var mapView: MapView
+    private lateinit var tapListener: MapObjectTapListener
+    private val pointViewModel: PointViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,20 +59,12 @@ class MainActivity : AppCompatActivity() {
         )
 
         mapView = binding.mapView
-        val mapKit = MapKitFactory.getInstance()
-        val trafficLayer = mapKit.createTrafficLayer(mapView.mapWindow)
-
-        binding.button.setOnClickListener{
-            showTraffic(trafficLayer, binding)
-        }
-
         binding.showUserLocation.setOnClickListener{
             getCurrentLocation()
         }
 
-        mapView.mapWindow.map.addInputListener(clickProcessingOnMap())
-
-
+        mapView.mapWindow.map.addInputListener(clickProcessingOnMap)
+        showAllPoints()
     }
 
     override fun onStart() {
@@ -125,43 +130,92 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun showTraffic(probity: TrafficLayer, binding: ActivityMainBinding) {
-        probity.isTrafficVisible = !probity.isTrafficVisible
-
-        binding.button.text = if (probity.isTrafficVisible) {
-            "Скрыть пробки"
-        } else {
-            "Показать пробки"
-        }
-    }
-
-    private fun showPoint(point: Point) {
+    private fun showPoint(pointEntity: PointEntity) {
         val imageProvider = ImageProvider.fromResource(this, R.drawable.point_location)
         val placemark = mapView.mapWindow.map.mapObjects.addPlacemark().apply {
-            geometry = Point(point.latitude, point.longitude)
+            geometry = Point(pointEntity.latitude, pointEntity.longitude)
             setIcon(imageProvider)
-            Toast.makeText(this@MainActivity, "Точка добавлена", Toast.LENGTH_SHORT).show()
+            setText(
+                pointEntity.name,
+                TextStyle().apply {
+                    size = 10f
+                    placement = TextStyle.Placement.RIGHT
+                    offset = 5f
+                },
+            )
         }
 
-        val tapListener = MapObjectTapListener { _, _ ->
-            Toast.makeText(
-                this@MainActivity,
-                "Tapped the point (${point.longitude}, ${point.latitude})",
-                Toast.LENGTH_SHORT).show()
+        tapListener = MapObjectTapListener { _, _ ->
+            showDialogPoint(pointEntity) {
+                mapView.mapWindow.map.mapObjects.remove(placemark)
+            }
             true
         }
 
         placemark.addTapListener(tapListener)
+
     }
 
-    private fun clickProcessingOnMap()  = object : InputListener {
-            override fun onMapTap(p0: Map, p1: Point) {
-                TODO("Not yet implemented")
-            }
+    private val clickProcessingOnMap = object : InputListener {
+        override fun onMapTap(p0: Map, p1: Point) {
+            Toast.makeText(
+                this@MainActivity,
+                "Для создания метки, удерживайте палец на карте",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
 
-            override fun onMapLongTap(p0: Map, p1: Point) {
-                showPoint(p1)
-            }
+        override fun onMapLongTap(p0: Map, p1: Point) {
+            insertNewPoint(p1)
+        }
+    }
 
+    private fun showDialogPointCreate(onPositive: (String) -> Unit = {}) {
+        val view = layoutInflater.inflate(R.layout.dialog_menu, null)
+        val editText = view.findViewById<EditText>(R.id.name_point)
+       MaterialAlertDialogBuilder(this)
+            .setView(view)
+            .setPositiveButton(R.string.positive_button) { dialogInt, _ ->
+                onPositive(editText.text.toString())
+                dialogInt.dismiss()
+            }.setNegativeButton(R.string.negative_button) { dialogInt, _ ->
+                dialogInt.dismiss()
+            }
+            .show()
+    }
+
+    private fun showDialogPoint(pointEntity: PointEntity, onNegative: () -> Unit = {}) {
+        val dialog = MaterialAlertDialogBuilder(this)
+        dialog.setPositiveButton("Ок") { dialogInt, _ ->
+            dialogInt.dismiss()
+        }.setNegativeButton("Удалить метку") { dialogInt, _ ->
+            onNegative()
+            dialogInt.dismiss()
+        }.setMessage("Координаты точки: ${pointEntity.latitude} ${pointEntity.longitude}")
+            .setTitle("Метка").create()
+        dialog.show()
+    }
+
+    private fun insertNewPoint(point: Point) {
+        showDialogPointCreate { name ->
+            pointViewModel.insertNewPoint(PointEntity(
+                id = 0,
+                latitude = point.latitude,
+                longitude = point.longitude,
+                name = name
+            ))
+        }
+    }
+
+    private fun showAllPoints() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                pointViewModel.readAllPoints.collect { list ->
+                    list.forEach { point ->
+                        showPoint(point)
+                    }
+                }
+            }
+        }
     }
 }

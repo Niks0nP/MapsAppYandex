@@ -3,4 +3,8 @@
     <string name="location_permission_denied">Разрешение на доступ к геолокации не предоставлено</string>
     <string name="location_button_off">Необходим доступ к местоположению</string>
     <string name="show_user_location">location_button</string>
+    <string name="positive_button">Добавить название</string>
+    <string name="negative_button">Отменить</string>
+    <string name="title_for_point">Ввведите название для метки</string>
+
 </resources>
